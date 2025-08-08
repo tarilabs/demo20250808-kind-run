@@ -1,0 +1,72 @@
+name: Kind Cluster Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-kind-cluster:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Kind following instruction from website (latest at the time of writing)
+      run: |
+        # For AMD64 / x86_64
+        [ $(uname -m) = x86_64 ] && curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
+        # For ARM64
+        [ $(uname -m) = aarch64 ] && curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-arm64
+        chmod +x ./kind
+        sudo mv ./kind /usr/local/bin/kind
+        
+    # - name: Install Docker and check image
+    #   run: |
+        
+    #     # Check if the custom image exists and can be pulled
+    #     echo "Checking custom image availability..."
+    #     docker pull ghcr.io/tarilabs/demo20250808-kind-crio-fromexistingnodeimg/kindnode-crio:v1.33-arm64 || echo "Failed to pull custom image"
+        
+    #     # Show image details if available
+    #     docker images | grep kindnode-crio || echo "Custom image not found locally"
+        
+    #     # Try to inspect the image if it was pulled successfully
+    #     if docker images | grep -q kindnode-crio; then
+    #       echo "Inspecting custom image..."
+    #       docker run --rm ghcr.io/tarilabs/demo20250808-kind-crio-fromexistingnodeimg/kindnode-crio:v1.33-arm64 cat /etc/os-release || echo "Could not read OS release"
+    #       docker run --rm ghcr.io/tarilabs/demo20250808-kind-crio-fromexistingnodeimg/kindnode-crio:v1.33-arm64 systemctl --version || echo "systemctl not available"
+    #     fi
+        
+    - name: Create Kind cluster
+      run: |
+        kind create cluster --image ghcr.io/tarilabs/demo20250808-kind-crio-fromexistingnodeimg/kindnode-crio:v1.33-amd64 --config kind-config.yml --verbosity 2
+        
+    - name: Wait for cluster to be ready
+      run: |
+        kubectl wait --for=condition=Ready nodes --all --timeout=300s
+        
+    - name: Apply images-volume-subpath
+      run: |
+        kubectl apply -f images-volume-subpath.yaml
+        
+    - name: Wait for pod to be ready
+      run: |
+        kubectl wait --for=condition=Ready pod/image-volume --timeout=300s
+        
+    - name: Check pod status
+      run: |
+        kubectl get pods
+        kubectl describe pod image-volume
+        
+    - name: Execute ls -la /volume in pod
+      run: |
+        kubectl exec image-volume -- ls -la /volume
+        
+    - name: Cleanup Kind cluster
+      if: always()
+      run: |
+        kind delete cluster 
