@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      image_reference:
+        description: 'Full image reference for the job (e.g., quay.io/crio/artifact:v2)'
+        required: false
+        default: 'quay.io/crio/artifact:v2'
+        type: string
 
 jobs:
   test-kind-cluster:
@@ -32,24 +38,49 @@ jobs:
       run: |
         kubectl wait --for=condition=Ready nodes --all --timeout=300s
         
-    - name: Apply images-volume-subpath
-      run: |
-        kubectl apply -f images-volume-subpath.yaml
+    # - name: Apply images-volume-subpath
+    #   run: |
+    #     kubectl apply -f images-volume-subpath.yaml
         
-    - name: Wait for pod to be ready
-      run: |
-        kubectl wait --for=condition=Ready pod/image-volume --timeout=300s
+    # - name: Wait for pod to be ready
+    #   run: |
+    #     kubectl wait --for=condition=Ready pod/image-volume --timeout=300s
         
-    - name: Check pod status
+    - name: Apply file-iterator-job with custom image
       run: |
-        kubectl get pods
-        kubectl describe pod image-volume
+        # Get image reference with default
+        IMAGE_REFERENCE="${{ github.event.inputs.image_reference || 'quay.io/crio/artifact:v2' }}"
         
-    - name: Execute ls -la /volume in pod
+        echo "Applying job with image: $IMAGE_REFERENCE"
+        
+        # Use yq to update the image reference in the job manifest
+        yq eval ".spec.template.spec.volumes[0].image.reference = \"$IMAGE_REFERENCE\"" file-iterator-job.yaml | kubectl apply -f -
+        kubectl describe job file-iterator-job
+        
+    - name: Wait for job to complete
       run: |
-        kubectl exec image-volume -- ls -la /volume
+        kubectl wait --for=condition=complete job/file-iterator-job --timeout=600s
+        
+    - name: Display job status
+      run: |
+        echo "=== Job Status ==="
+        kubectl get jobs
+        kubectl describe job file-iterator-job
+        
+    - name: Display job logs
+      run: |
+        echo "=== Job Logs ==="
+        kubectl logs job/file-iterator-job
+        
+    - name: Display job logs on failure
+      if: failure()
+      run: |
+        echo "=== Job Logs (on failure) ==="
+        kubectl events
+        kubectl logs job/file-iterator-job
+        kubectl logs job/file-iterator-job --previous || true
         
     - name: Cleanup Kind cluster
       if: always()
       run: |
-        kind delete cluster 
+        kind delete cluster

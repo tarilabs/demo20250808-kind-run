@@ -15,13 +15,16 @@ spec:
         args:
         - -c
         - |
-          apt-get update && apt-get install -y file
+          apt-get update && apt-get install -y file tree
           cd "$DIRECTORY"
           
+          echo "Tree structure of $DIRECTORY:"
+          tree
+          echo ""
           echo "Iterating through files in $DIRECTORY..."
           
           find . -type f | while read -r filepath; do
-            echo "=== Processing: $filepath ==="
+            echo "=== Processing: $filepath (first 10 lines if text) ==="
             
             # Check if file is text-based using file command
             filetype=$(file -b "$filepath")
@@ -34,7 +37,6 @@ spec:
             
             # For remaining files, verify they're text and process
             if file "$filepath" | grep -qi "text"; then
-              echo "First 10 lines of $filepath:"
               head -n 10 "$filepath"
               echo ""
             else
