@@ -24,23 +24,6 @@ jobs:
         chmod +x ./kind
         sudo mv ./kind /usr/local/bin/kind
         
-    # - name: Install Docker and check image
-    #   run: |
-        
-    #     # Check if the custom image exists and can be pulled
-    #     echo "Checking custom image availability..."
-    #     docker pull ghcr.io/tarilabs/demo20250808-kind-crio-fromexistingnodeimg/kindnode-crio:v1.33-arm64 || echo "Failed to pull custom image"
-        
-    #     # Show image details if available
-    #     docker images | grep kindnode-crio || echo "Custom image not found locally"
-        
-    #     # Try to inspect the image if it was pulled successfully
-    #     if docker images | grep -q kindnode-crio; then
-    #       echo "Inspecting custom image..."
-    #       docker run --rm ghcr.io/tarilabs/demo20250808-kind-crio-fromexistingnodeimg/kindnode-crio:v1.33-arm64 cat /etc/os-release || echo "Could not read OS release"
-    #       docker run --rm ghcr.io/tarilabs/demo20250808-kind-crio-fromexistingnodeimg/kindnode-crio:v1.33-arm64 systemctl --version || echo "systemctl not available"
-    #     fi
-        
     - name: Create Kind cluster
       run: |
         kind create cluster --image ghcr.io/tarilabs/demo20250808-kind-crio-fromexistingnodeimg/kindnode-crio:v1.33-amd64 --config kind-config.yml --verbosity 2

@@ -1,0 +1,54 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: file-iterator-job
+spec:
+  template:
+    spec:
+      containers:
+      - name: file-iterator
+        image: debian
+        env:
+        - name: DIRECTORY
+          value: "/volume"
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - |
+          apt-get update && apt-get install -y file
+          cd "$DIRECTORY"
+          
+          echo "Iterating through files in $DIRECTORY..."
+          
+          find . -type f | while read -r filepath; do
+            echo "=== Processing: $filepath ==="
+            
+            # Check if file is text-based using file command
+            filetype=$(file -b "$filepath")
+            
+            # Skip binary files (safetensors, executables, etc.)
+            if echo "$filetype" | grep -qi "binary\|executable\|data"; then
+              echo "Skipping binary file: $filepath"
+              continue
+            fi
+            
+            # For remaining files, verify they're text and process
+            if file "$filepath" | grep -qi "text"; then
+              echo "First 10 lines of $filepath:"
+              head -n 10 "$filepath"
+              echo ""
+            else
+              echo "Skipping non-text file: $filepath"
+            fi
+          done
+        volumeMounts:
+        - name: volume
+          mountPath: /volume
+          subPath: dir
+      volumes:
+      - name: volume
+        image:
+          reference: quay.io/crio/artifact:v2
+          pullPolicy: IfNotPresent
+      restartPolicy: Never
+  backoffLimit: 3
